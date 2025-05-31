@@ -1,6 +1,6 @@
-package com.finance.authentication_service.exception;
+package com.finance.transaction_service.exception;
 
-import com.finance.authentication_service.dto.ApiResponse;
+import com.finance.transaction_service.dto.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;

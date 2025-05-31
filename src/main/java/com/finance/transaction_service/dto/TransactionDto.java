@@ -4,8 +4,9 @@ import com.finance.transaction_service.enums.TransactionType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
+import java.util.Date;
 import java.util.UUID;
 
 @Data
@@ -14,9 +15,8 @@ import java.util.UUID;
 public class TransactionDto {
     private UUID userId;
     private TransactionType type;
-    private double amount;
+    private BigDecimal amount;
     private String category;
-    private String date;
+    private Date date;
     private String description;
-    private MultipartFile attachment;
 }

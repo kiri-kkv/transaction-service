@@ -10,6 +10,7 @@ import io.jsonwebtoken.Claims;
 
 import java.security.Key;
 import java.util.Date;
+import java.util.Objects;
 import java.util.function.Function;
 
 @Component
@@ -53,8 +54,14 @@ public class JwtService {
         return extractClaim(token,Claims::getSubject);
     }
 
-    public Boolean validateToken(String token, UserDetails userDetails){
-        final String email = extractUsername(token);
-        return (email.equals(userDetails.getUsername()) && !(isTokenExpired(token)));
+    public String extractRole(String token) {
+        Claims claims = extractAllClaims(token);
+        return claims.get("role", String.class);
+    }
+
+    public Boolean validateToken(String token, String userName){
+        boolean isAuthincated = (userName!=null && Objects.equals(extractUsername(token), userName) && !isTokenExpired(token));
+        System.out.println("isAuthincated===" + isAuthincated + " " + extractUsername(token));
+        return isAuthincated;
     }
 }

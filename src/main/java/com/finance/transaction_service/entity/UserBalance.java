@@ -7,12 +7,14 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.UUID;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@Entity
 @Table(name = "user_balance")
 public class UserBalance {
     @Id
@@ -20,13 +22,19 @@ public class UserBalance {
     private long id;
 
     @Column(name = "user_id",nullable = false)
-    private UUID user_id;
+    private UUID userId;
 
     @Column(name = "date",nullable = false)
     private Date date;
 
-    @Column(name="balance",precision = 10,scale = 2,nullable = false)
-    private Double balance;
+    @Column(name="total_balance",precision = 10,scale = 2,nullable = false)
+    private BigDecimal balance = BigDecimal.valueOf(0.0);
+
+    @Column(name="total_income",precision = 10,scale = 2,nullable = false)
+    private BigDecimal income = BigDecimal.valueOf(0.0);
+
+    @Column(name="total_expense",precision = 10,scale = 2,nullable = false)
+    private BigDecimal expense = BigDecimal.valueOf(0.0);
 
     @CreationTimestamp
     @Column(updatable = false, name = "created_at")

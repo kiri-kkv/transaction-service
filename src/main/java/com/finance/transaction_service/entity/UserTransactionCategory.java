@@ -13,6 +13,7 @@ import java.util.UUID;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@Entity
 @Table(name = "user_transaction_category")
 public class UserTransactionCategory {
     @Id
@@ -20,7 +21,7 @@ public class UserTransactionCategory {
     private long id;
 
     @Column(name = "user_id",nullable = false)
-    private UUID user_id;
+    private UUID userId;
 
     @Column(name = "category",columnDefinition = "text[]")
     private String[] category;

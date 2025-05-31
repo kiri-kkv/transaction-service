@@ -8,12 +8,14 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.UUID;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Entity
 @Table(name = "transactions")
 public class Transactions {
     @Id
@@ -21,13 +23,13 @@ public class Transactions {
     private long id;
 
     @Column(name = "user_id",nullable = false)
-    private UUID user_id;
+    private UUID userId;
 
     @Column(name="type",nullable = false)
     private TransactionType type;
 
     @Column(name="amount",precision = 10,scale = 2, nullable = false)
-    private Double amount;
+    private BigDecimal amount = BigDecimal.valueOf(0.0);
 
     @Column(name="category",nullable = false)
     private String category;

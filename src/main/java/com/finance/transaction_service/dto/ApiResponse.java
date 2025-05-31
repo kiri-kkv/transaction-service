@@ -1,4 +1,4 @@
-package com.finance.authentication_service.dto;
+package com.finance.transaction_service.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

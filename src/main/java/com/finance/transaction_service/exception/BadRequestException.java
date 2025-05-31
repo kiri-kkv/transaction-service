@@ -1,4 +1,4 @@
-package com.finance.authentication_service.exception;
+package com.finance.transaction_service.exception;
 
 public class BadRequestException extends RuntimeException {
     public BadRequestException(String message) {
