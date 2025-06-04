@@ -9,6 +9,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 
@@ -27,13 +28,8 @@ public class TransactionCategoryService {
     public ResponseEntity<ApiResponse<Object>> getSystemCategories(UserIdDto userIdDto) {
         List<String> categories = new ArrayList<>(SYSTEM_CATEGORIES);
         UserTransactionCategory userTransactionCategory = userTransactionCategoryRepository.getByUserId(userIdDto.getUserId());
-        System.out.println("userTransactionCategory== "+userTransactionCategory);
-        if(userTransactionCategory!=null){
-            System.out.println("userTransactionCategory== "+categories);
-            System.out.println("userTransactionCategory== "+ Arrays.toString(userTransactionCategory.getCategory()));
+        if(userTransactionCategory!=null)
             categories.addAll(Arrays.asList(userTransactionCategory.getCategory()));
-            System.out.println("userTransactionCategory== "+categories);
-        }
         ApiResponse<Object> apiResponse = new ApiResponse<>(
                 HttpStatus.OK,
                 messageSource.getMessage("category.fetch.successfully",null, Locale.ENGLISH),
@@ -42,36 +38,44 @@ public class TransactionCategoryService {
         return ResponseEntity.ok(apiResponse);
     }
 
+    @Transactional
     public ResponseEntity<ApiResponse<Object>> addUserCategory(UserCategoryDto userCategoryDto) {
-        UUID userId = userCategoryDto.getUserId();
-        String category = userCategoryDto.getCategory();
+        try {
+            UUID userId = userCategoryDto.getUserId();
+            String category = userCategoryDto.getCategory();
 
-        UserTransactionCategory userCategories = userTransactionCategoryRepository.getByUserId(userId);
+            UserTransactionCategory userCategories = userTransactionCategoryRepository.getByUserId(userId);
 
-        if(userCategories == null) {
-            userCategories = new UserTransactionCategory();
-            userCategories.setUserId(userId);
-            userCategories.setCategory(new String[]{category});
-        }else {
-            String [] existingCategory = userCategories.getCategory();
-            List<String> userCategory = existingCategory !=null ? new ArrayList<>(Arrays.asList(existingCategory)) : new ArrayList<>();
-            if(userCategory.contains(category)){
-                return ResponseEntity.ok(new ApiResponse<>(
-                        HttpStatus.OK,
-                        messageSource.getMessage("category.exists", null, Locale.ENGLISH),
-                        null
-                ));
+            if (userCategories == null) {
+                userCategories = new UserTransactionCategory();
+                userCategories.setUserId(userId);
+                userCategories.setCategory(new String[]{category});
+            } else {
+                String[] existingCategory = userCategories.getCategory();
+                List<String> userCategory = existingCategory != null ? new ArrayList<>(Arrays.asList(existingCategory)) : new ArrayList<>();
+                if (userCategory.contains(category)) {
+                    return ResponseEntity.ok(new ApiResponse<>(
+                            HttpStatus.OK,
+                            messageSource.getMessage("category.exists", null, Locale.ENGLISH),
+                            null
+                    ));
+                }
+
+                userCategory.add(category);
+                userCategories.setCategory(userCategory.toArray(new String[0]));
             }
+            userTransactionCategoryRepository.save(userCategories);
 
-            userCategory.add(category);
-            userCategories.setCategory(userCategory.toArray(new String[0]));
+            return ResponseEntity.ok(new ApiResponse<>(
+                    HttpStatus.OK,
+                    messageSource.getMessage("category.added.successfully", null, Locale.ENGLISH),
+                    null
+            ));
+        } catch (Exception ex) {
+            throw new RuntimeException(
+                    messageSource.getMessage("record.saving.error", null, Locale.ENGLISH),
+                    ex
+            );
         }
-        userTransactionCategoryRepository.save(userCategories);
-
-        return ResponseEntity.ok(new ApiResponse<>(
-                HttpStatus.OK,
-                messageSource.getMessage("category.added.successfully", null, Locale.ENGLISH),
-                null
-        ));
     }
 }
