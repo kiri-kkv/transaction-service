@@ -6,6 +6,7 @@ import com.finance.transaction_service.dto.FinanceOverviewDto;
 import com.finance.transaction_service.dto.TransactionDto;
 import com.finance.transaction_service.entity.Transactions;
 import com.finance.transaction_service.entity.UserBalance;
+import com.finance.transaction_service.exception.ResourceNotFoundException;
 import com.finance.transaction_service.repository.TransactionsRepository;
 import com.finance.transaction_service.repository.UserBalanceRepository;
 import org.modelmapper.ModelMapper;
@@ -17,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -38,41 +40,56 @@ public class TransactionService {
         this.userBalanceRepository = userBalanceRepository;
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public ResponseEntity<ApiResponse<Object>> addTransactions(TransactionDto transactionDto) {
-        TypeMap<TransactionDto, Transactions> typeMap = modelMapper.getTypeMap(TransactionDto.class, Transactions.class);
+        try {
+            TypeMap<TransactionDto, Transactions> typeMap = modelMapper.getTypeMap(TransactionDto.class, Transactions.class);
 
-        if (typeMap == null) {
-            typeMap = modelMapper.createTypeMap(TransactionDto.class, Transactions.class);
-            typeMap.addMappings(mapper -> mapper.skip(Transactions::setId));
+            if (typeMap == null) {
+                typeMap = modelMapper.createTypeMap(TransactionDto.class, Transactions.class);
+                typeMap.addMappings(mapper -> mapper.skip(Transactions::setId));
+            }
+            Transactions transactions = modelMapper.map(transactionDto, Transactions.class);
+
+            transactionsRepository.save(transactions);
+
+            Date currentDate = new Date();
+
+            Optional<UserBalance> userBalance = Optional.ofNullable(userBalanceRepository.findDateBySameMonthAndYear(currentDate, transactionDto.getUserId()));
+            if (userBalance.isPresent()) {
+                int updatedCount;
+                if (transactionDto.getType().name().equals(AppConstants.EXPENSE)) {
+                    updatedCount = userBalanceRepository.updateUserExpense(transactionDto.getUserId(), transactionDto.getAmount());
+                } else {
+                    updatedCount = userBalanceRepository.updateUserIncome(transactionDto.getUserId(), transactionDto.getAmount());
+                }
+                if (updatedCount == 0)
+                    throw new RuntimeException(messageSource.getMessage("transaction.saving.error", null, Locale.ENGLISH));
+            } else {
+                UserBalance userMonthBalance = new UserBalance();
+                userMonthBalance.setUserId(transactionDto.getUserId());
+                userMonthBalance.setDate(currentDate);
+                if (transactionDto.getType().name().equals(AppConstants.EXPENSE))
+                    userMonthBalance.setExpense(transactionDto.getAmount());
+                else userMonthBalance.setIncome(transactionDto.getAmount());
+                userBalanceRepository.save(userMonthBalance);
+            }
+
+            ApiResponse<Object> apiResponse = new ApiResponse<>(
+                    HttpStatus.OK,
+                    messageSource.getMessage("transaction.add.success", null, Locale.ENGLISH),
+                    null
+            );
+            return ResponseEntity.ok(apiResponse);
+        }catch (Exception ex){
+            throw new RuntimeException(
+                    messageSource.getMessage("record.saving.error", null, Locale.ENGLISH),
+                    ex
+            );
         }
-        Transactions transactions = modelMapper.map(transactionDto, Transactions.class);
-        transactionsRepository.save(transactions);
-
-        Date currentDate = new Date();
-
-        Optional<UserBalance> userBalance = Optional.ofNullable(userBalanceRepository.findDateBySameMonthAndYear(currentDate, transactionDto.getUserId()));
-        if(userBalance.isPresent()) {
-            if (transactionDto.getType().name().equals(AppConstants.EXPENSE))
-                userBalanceRepository.updateUserExpense(transactionDto.getUserId(), transactionDto.getAmount());
-            else
-                userBalanceRepository.updateUserIncome(transactionDto.getUserId(), transactionDto.getAmount());
-        } else{
-            UserBalance userMonthBalance = new UserBalance();
-            userMonthBalance.setUserId(transactionDto.getUserId());
-            userMonthBalance.setDate(currentDate);
-            if (transactionDto.getType().name().equals(AppConstants.EXPENSE)) userMonthBalance.setExpense(transactionDto.getAmount());
-            else userMonthBalance.setIncome(transactionDto.getAmount());
-            userBalanceRepository.save(userMonthBalance);
-        }
-        ApiResponse<Object> apiResponse = new ApiResponse<>(
-                HttpStatus.OK,
-                messageSource.getMessage("transaction.add.success",null, Locale.ENGLISH),
-                null
-        );
-        return ResponseEntity.ok(apiResponse);
     }
 
-    public ResponseEntity<ApiResponse<Page<Transactions>>> getTransactions(int page,int size,FinanceOverviewDto financeOverviewDto) throws ParseException {
+    public ResponseEntity<ApiResponse<Page<Transactions>>> getTransactions(int page,int size, FinanceOverviewDto financeOverviewDto) throws ParseException {
         Pageable pageable = PageRequest.of(page, size);
         UUID userId = financeOverviewDto.getUserId();
 
@@ -80,7 +97,6 @@ public class TransactionService {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
         Date fromDate = sdf.parse(financeOverviewDto.getFromDate());
         Date toDate = sdf.parse(financeOverviewDto.getToDate());
-        System.out.println(userId+" " + fromDate +" " +toDate);
 
         Page<Transactions> transactions = transactionsRepository.fetchTransactionsBetweenDates(fromDate,toDate,userId,pageable);
 
@@ -107,14 +123,17 @@ public class TransactionService {
 
         UserBalance userCurrentBalance = userBalanceRepository.findDateBySameMonthAndYear(inputDate,userId);
         UserBalance userPreviousBalance = userBalanceRepository.findDateBySameMonthAndYear(previousMonthDate,userId);
+        System.out.println("userCurrentBalance=====" + userCurrentBalance);
+        if(userCurrentBalance == null)
+            throw new ResourceNotFoundException(messageSource.getMessage("finance.details.not.found", null, Locale.ENGLISH));
 
         Map<String, BigDecimal> financeOverview = new HashMap<>();
         financeOverview.put(AppConstants.BALANCE.toLowerCase(),userCurrentBalance.getBalance());
         financeOverview.put(AppConstants.EXPENSE.toLowerCase(),userCurrentBalance.getExpense());
         financeOverview.put(AppConstants.INCOME.toLowerCase(),userCurrentBalance.getIncome());
-        financeOverview.put(AppConstants.PREVIOUS_BALANCE.toLowerCase(),userPreviousBalance.getBalance());
-        financeOverview.put(AppConstants.PREVIOUS_EXPENSE.toLowerCase(),userPreviousBalance.getExpense());
-        financeOverview.put(AppConstants.PREVIOUS_INCOME.toLowerCase(),userPreviousBalance.getIncome());
+        financeOverview.put(AppConstants.PREVIOUS_BALANCE.toLowerCase(),userPreviousBalance != null ? userPreviousBalance.getBalance() : BigDecimal.valueOf(Integer.MIN_VALUE));
+        financeOverview.put(AppConstants.PREVIOUS_EXPENSE.toLowerCase(),userPreviousBalance != null ? userPreviousBalance.getExpense() : BigDecimal.valueOf(Integer.MIN_VALUE));
+        financeOverview.put(AppConstants.PREVIOUS_INCOME.toLowerCase(),userPreviousBalance != null ? userPreviousBalance.getIncome() : BigDecimal.valueOf(Integer.MIN_VALUE));
 
         ApiResponse<Object> response = new ApiResponse<>(
                 HttpStatus.OK,
@@ -135,6 +154,8 @@ public class TransactionService {
 
         Pageable wholePage = Pageable.unpaged();
         Page<Transactions> transactions = transactionsRepository.fetchTransactionsBetweenDates(fromDate,toDate,userId,wholePage);
+        if(transactions.isEmpty())
+            throw new ResourceNotFoundException(messageSource.getMessage("transaction.not.found", null, Locale.ENGLISH));
         Map<String,List<Map<String, Object>>> categoryTransactions= new HashMap<>();
         Map<String,BigDecimal> categoryAmount= new HashMap<>();
         BigDecimal totalAmountSpent = BigDecimal.valueOf(0.0);
@@ -168,7 +189,6 @@ public class TransactionService {
         for (Map.Entry<String, BigDecimal> entry : categoryAmount.entrySet()) {
             String category = entry.getKey();
             BigDecimal amount = entry.getValue();
-            System.out.println("amount==== "+totalAmountSpent +" " + amount);
 
             BigDecimal percentage = amount
                     .divide(totalAmountSpent, 2, RoundingMode.HALF_UP)  // 2 decimal places

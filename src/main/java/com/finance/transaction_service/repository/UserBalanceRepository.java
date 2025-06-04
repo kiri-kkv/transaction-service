@@ -21,12 +21,12 @@ public interface UserBalanceRepository extends JpaRepository<UserBalance, Long> 
     @Transactional
     @Modifying
     @Query("UPDATE UserBalance ub SET ub.expense = ub.expense + :amount WHERE ub.userId = :userId")
-    void updateUserExpense(@Param("userId") UUID userId, @Param("amount") BigDecimal amount);
+    int updateUserExpense(@Param("userId") UUID userId, @Param("amount") BigDecimal amount);
 
     @Transactional
     @Modifying
     @Query("UPDATE UserBalance ub SET ub.income = ub.income + :amount WHERE ub.userId = :userId")
-    void updateUserIncome(@Param("userId") UUID userId, @Param("amount") BigDecimal amount);
+    int updateUserIncome(@Param("userId") UUID userId, @Param("amount") BigDecimal amount);
 
     @Query(value = """
             SELECT * FROM user_balance
